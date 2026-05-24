@@ -1,6 +1,6 @@
 # Uncle's Pills Privacy Policy
 
-**Last updated:** 2026-05-17
+**Last updated:** 2026-05-25
 **Operator:** Martin Fu (Uncle's Pills)
 **Contact:** unclespills-privacy@fufamily.com
 
@@ -89,34 +89,77 @@ authenticated user can read this lookup (that is how the join-by-code
 flow works); only an admin of the target family can create one, and
 the joiner deletes it after use.
 
-## AI scan (Google Gemini)
+## AI assistance (Google Gemini) — what we send, to whom, and your consent
 
-Uncle's Pills includes an optional feature that uses Google's Gemini API to
-read a photo of a medicine bag or prescription label and extract the
-medication name, dosage, schedule, and quantity into structured form.
+Uncle's Pills includes two optional features that send data to **Google's
+Gemini API** (Google's generative-AI service):
 
-This feature is **bring-your-own-key**. You paste a Google AI Studio
-API key into Settings → Account; that key is stored in your per-user
-Firestore document and read by the app at request time. When you
-press "Scan", the app does two things:
+1. **AI medicine-bag scan.** When you tap "Scan medicine bags", the app
+   sends the photos you took (or picked from your library) to Gemini so
+   it can extract the medication name, Chinese name, dosage, quantity,
+   schedule, shape, color, marking, and storage hints into a structured
+   form you can review and edit.
+2. **AI medication-name autocomplete.** When you type into a medication
+   name field (in the manual add/edit form, or in the AI-scan review
+   screen), the app debounces by ~500 ms and then sends the text you
+   typed to Gemini to fetch up to 8 suggested medication names and
+   brand variants.
 
-1. Uploads the original photo to Firebase Storage at
-   `/families/{familyId}/photos/{id}`, so other members of the family
-   can see the source later.
-2. Sends the same image bytes, plus a prompt, directly from your
-   device to
-   `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`
-   using your own Google AI Studio key.
+### Explicit consent is required
 
-Google sees the photo and the prompt because Google operates the
-Gemini API. We do not run a server in between, and we do not have an
-arrangement with Google that gives us access to your AI usage. **We do
-not send the photo or any of your data to Anthropic, OpenAI, or any
-other AI vendor.** The only AI call the app makes is the Gemini call
-described here.
+Before either of these features will run, Uncle's Pills shows you a
+consent screen that names Google as the recipient, lists exactly what
+data is sent, and asks you to tap "Allow". **No photo or typed
+medication name is sent to Gemini until you tap "Allow".** If you tap
+"Not now", AI scan and AI autocomplete are turned off and the app
+never contacts Gemini. You can change your mind any time in
+**Settings → AI assistance (Google Gemini)**, which also shows when
+you originally allowed it and lets you turn it back off.
 
-If you do not configure a Gemini key, the AI scan feature is disabled
-and the app never contacts Gemini at all.
+### What gets sent
+
+| Action | Data sent to Google Gemini |
+| --- | --- |
+| You tap "Analyze" on the AI scan modal | The base64-encoded photos you added (which may show a patient's name, clinic name, prescribing doctor, drug name, dosage, instructions, and any other text on the medicine bag) plus a prompt asking Gemini to extract the medication fields |
+| You type into a medication-name field | The text you typed (after a ~500 ms debounce), plus a prompt asking Gemini to suggest matching drug names |
+
+The request is sent **directly from your device** over HTTPS to
+`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`,
+using **your own Google AI Studio API key** (the app is
+"bring-your-own-key" — see below). The request is not routed through
+any Uncle's Pills server.
+
+### How the API key is stored
+
+You paste a Google AI Studio API key into Settings → AI assistance.
+That key is stored in your per-user Firestore document
+(`/users/{uid}.geminiApiKey`) so it follows you to other devices you
+sign in on. It is read by the app at request time and attached as the
+`key=` query parameter on the call to the Gemini endpoint. The key is
+readable and writable only by you under our Firestore rules.
+
+### Who receives the data, and under what terms
+
+The recipient is **Google LLC**, operator of the Gemini API. Google
+sees the photo bytes (or typed text) and the prompt because it is the
+service performing the inference. Google handles the data under
+**Google's privacy policy** (https://policies.google.com/privacy)
+and the **Google APIs Terms of Service** that govern your AI Studio
+key (https://ai.google.dev/terms). Google offers data protections
+that we consider materially equivalent to those described in this
+policy; we encourage you to read Google's terms before allowing AI
+features.
+
+### What we don't do
+
+Uncle's Pills does not run an AI server of its own, does not log or
+cache the photos or typed text on any Uncle's Pills server, and does
+not share this data with any other AI vendor. **We do not send the
+photo or any of your data to Anthropic, OpenAI, or any other AI
+vendor.** The only AI calls the app makes are the two Gemini calls
+described here. Disabling consent (or removing your Gemini key) is
+sufficient to stop all AI calls — the app falls back to its
+on-device medication-name list and to manual medication entry.
 
 ## Device features the app uses
 
@@ -163,7 +206,8 @@ is collected.
 | Family name, member list | Firestore | Google + your family members |
 | Medication list, dose log, pillbox config | Firestore | Google + your family members |
 | Medicine-bag photos | Firebase Storage | Google + your family members |
-| AI-scan request (photo + prompt) | Google Gemini API | Google (Gemini) |
+| AI-scan request (photo + prompt) — only if you have allowed AI assistance and configured a Gemini key | Google Gemini API | Google (Gemini), under Google's privacy policy |
+| AI-autocomplete request (typed medication name + prompt) — only if you have allowed AI assistance and configured a Gemini key | Google Gemini API | Google (Gemini), under Google's privacy policy |
 | Profile avatar | Firebase Storage | Google + any signed-in Uncle's Pills user (avatars are intentionally readable across families) |
 
 The operator (Martin Fu) is the owner of the Firebase project that
@@ -191,9 +235,13 @@ child's behalf. We do not separately collect data from children.
   family, and the family root document.
 - **Sign out.** Sign out from Settings → Account. Your data remains on
   the server; signing back in restores it.
-- **Remove your Gemini key.** Settings → Account has a "Clear key"
-  button. After this, AI scan is disabled and the app no longer
-  contacts Gemini.
+- **Turn off AI assistance.** Settings → AI assistance (Google Gemini)
+  has a "Turn off AI features" button. After this, AI scan and AI
+  autocomplete are disabled and the app no longer contacts Gemini —
+  regardless of whether a Gemini key is configured.
+- **Remove your Gemini key.** Settings → AI assistance also has a
+  "Remove key" button. With no key configured, the app cannot call
+  Gemini even if consent is on.
 - **Delete the app.** Deleting Uncle's Pills from your device removes the
   local cached copy of your data. To also remove the server-side data,
   delete the families you administer first, or contact us at the email
